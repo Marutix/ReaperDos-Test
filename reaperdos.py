@@ -45,7 +45,7 @@ PROXY_FILE = 'Free_Proxy_List.txt'
 # Set terminal title to "ReaperDos" based on platform
 if os.name == 'nt':  # Windows
     os.system('title ReaperDos')
-else:  # Unix-like (e.g., iSH, Linux)
+else:  # Unix-like (e.g., Linux, macOS)
     print("\033]0;ReaperDos\007", end='')
 
 # Display program name and enhanced ASCII art
@@ -818,6 +818,10 @@ async def main():
             config_file = input(f"{Fore.GREEN}Enter config file path: {Style.RESET_ALL}").strip()
             config_attack(proxy_manager, config_file)
         
+        elif choice == '9':  # Exit
+            print(f"{Fore.YELLOW}Exiting ReaperDos...{Style.RESET_ALL}")
+            break
+        
         elif choice == '10':  # Single Raider Attack
             token = input(f"{Fore.GREEN}Enter Discord user token: {Style.RESET_ALL}").strip()
             invite_link = input(f"{Fore.GREEN}Enter invite link: {Style.RESET_ALL}").strip()
@@ -839,4 +843,29 @@ async def main():
             result = ip_lookup(ip)
             print(f"{Fore.YELLOW}IP Lookup Result: {result}{Style.RESET_ALL}")
         
-        elif choice
+        elif choice == '14':  # Port Scan
+            target = input(f"{Fore.GREEN}Enter target IP or domain: {Style.RESET_ALL}").strip()
+            ports = tuple(map(int, input(f"{Fore.GREEN}Enter ports to scan (comma-separated, e.g., 80,443,22): {Style.RESET_ALL}").split(',')))
+            result = port_scan(target, ports)
+            print(f"{Fore.YELLOW}Port Scan Result: {result}{Style.RESET_ALL}")
+        
+        elif choice == '15':  # Proxy Speed Test
+            results = await proxy_speed_test(proxy_manager)
+            print(f"{Fore.YELLOW}Proxy Speed Test Results: {results}{Style.RESET_ALL}")
+        
+        elif choice == '16':  # Packet Analysis
+            interface = input(f"{Fore.GREEN}Enter network interface (e.g., eth0): {Style.RESET_ALL}").strip()
+            count = int(input(f"{Fore.GREEN}Enter number of packets to capture: {Style.RESET_ALL}"))
+            result = packet_analysis(interface, count)
+            print(f"{Fore.YELLOW}Packet Analysis Result: {result}{Style.RESET_ALL}")
+        
+        elif choice == '17':  # View Logs
+            view_logs()
+        
+        else:
+            print(f"{Fore.RED}Invalid choice. Please enter a number between 1 and 17.{Style.RESET_ALL}")
+        
+        input(f"{Fore.YELLOW}Press Enter to return to the menu...{Style.RESET_ALL}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
